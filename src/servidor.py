@@ -1,4 +1,5 @@
 from Crypto.Protocol.KDF import scrypt
+import pyotp
 
 class User:
   def __init__(self, nome_de_usuario, hash_senha):
@@ -9,15 +10,30 @@ class Servidor:
   def __init__(self):
     self.usuarios = []
 
-  def criptografar(self, usuario: str, chave: str):
+  def criptografar(self, usuario: str, token: str):
     salt = usuario[::-1]
-    chave_scrypt = scrypt(chave, salt, 16, N=2**14, r=8, p=1)
+    chave_scrypt = scrypt(token, salt, 16, N=2**14, r=8, p=1)
     return chave_scrypt
 
-  def login(self):
-    print('---------------Cadastro---------------')
-    usuario = input('Informe o nome do usuário: ')
-    senha = input('Informe a senha do usuário: ')
+  def gerar_2fa(self, horario):
+    segredo = pyotp.random_base32()
+    totp = pyotp.TOTP(segredo)
+    print('Código de autenticação: ' + totp.now())
+    print('\n')
+    codigo_do_usuario = input('Qual o código de autenticação? ')
+    totp.verify(codigo_do_usuario)
+
+  def login(self, usuario: User, token: str, horario: str):
+    senha_digitada = self.criptografar(usuario.nome_de_usuario, token)
+
+    if usuario.hash_senha == senha_digitada:
+      # TODO
+      self.gerar_2fa(horario)
+      print('Login feito com sucesso!')
+      print('\n')
+    else:
+      print('A senha está incorreta.')
+      print('\n')
 
   def buscar_usuario(self, nome: str):
     for usuario in self.usuarios:
