@@ -1,23 +1,22 @@
-import inquirer
-from src.servidor import Servidor
+from src.cliente import Cliente
 
-servidor = Servidor()
+cliente = Cliente()
 
-options = [
-  inquirer.List('option',
-                message="O que você deseja?",
-                choices=['Login', 'Cadastrar', 'Sair'],
-            ),
-]
-answers = inquirer.prompt(options)
+while True:
+  print('--------------- Menu ---------------')
+  print('(1) Cadastro')
+  print('(2) Login')
+  print('(3) Sair')
+  opcao = int(input('O que você deseja fazer? '))
+  print('\n')
 
-print(answers['option'])
+  funcoes = {
+    1: cliente.cadastrar,
+    2: cliente.login,
+    3: quit
+  }
 
-if answers['option'] == 'Login':
-  print('Função de login')
-
-elif answers['option'] == 'Cadastrar':
-  servidor.cadastrar()
-
-else:
-  print('Função de sair')
+  if opcao != 1 and opcao != 2 and opcao != 3:
+    print('Por favor, digite uma opção válida')
+  else:
+    funcoes[opcao]()
