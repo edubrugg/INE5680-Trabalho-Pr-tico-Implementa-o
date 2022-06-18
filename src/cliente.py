@@ -50,6 +50,7 @@ class Cliente:
 
     salt = usuario[::-1]
     chave_PBKDF2 = PBKDF2(senha, salt, 32, count=10000, hmac_hash_module=SHA512)
-    horario = str(datetime.now())[11:]
-    horario_formatado = str(horario)[:8]
+    # horario = str(datetime.now())[11:]
+    # horario_formatado = str(horario)[:8]
+    horario_formatado = datetime.now()
     self.servidor.login(usuario_buscado, chave_PBKDF2, horario_formatado)
