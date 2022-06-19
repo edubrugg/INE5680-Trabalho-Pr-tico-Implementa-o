@@ -6,7 +6,7 @@ import msvcrt
 import sys
 from time import sleep
 
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA512
 from Crypto.Protocol.KDF import PBKDF2
@@ -26,6 +26,9 @@ class Servidor:
     self.usuarios = []
     self.codigo_2fa_usado_no_acesso = ''
     self.pbkdf2_codigo_2fa_usado_no_acesso = ''
+    self.contador_de_mensagem = 1
+    self.ultima_mensagem_recebida = ''
+    self.ultima_mensagem_recebida_cifrada = ''
 
   def criptografar(self, usuario: str, token: str):
     salt = usuario[::-1]
@@ -68,7 +71,6 @@ class Servidor:
     if totp.verify(codigo_do_usuario):
       print('\n')
       print('Login feito com sucesso!')
-      print('\n')
       self.codigo_2fa_usado_no_login = codigo_do_usuario
       return codigo_do_usuario
     else:
@@ -83,6 +85,7 @@ class Servidor:
       if autenticacao == False:
         print('\n')
         print('Código incorreto!')
+        return False
       else:
         codigo_pbkdf2 = PBKDF2(self.codigo_2fa_usado_no_login, salt, 32, count=10000, hmac_hash_module=SHA512)
         self.pbkdf2_codigo_2fa_usado_no_acesso = codigo_pbkdf2
@@ -110,12 +113,42 @@ class Servidor:
       json_k = [ 'nonce', 'header', 'ciphertext', 'tag' ]
       jv = {k:b64decode(b64[k]) for k in json_k}
 
+      self.ultima_mensagem_recebida_cifrada = jv['ciphertext']
       cipher = AES.new(chave, AES.MODE_GCM, nonce=jv['nonce'])
       cipher.update(jv['header'])
       mensagem_decifrada = cipher.decrypt_and_verify(jv['ciphertext'], jv['tag'])
-      print('A mensagem decifrada pelo servidor é:', mensagem_decifrada.decode("utf-8") )
-      print('\n')
+      self.ultima_mensagem_recebida = mensagem_decifrada.decode("utf-8")
     except (ValueError, KeyError):
       print('Ocorreu um erro na descriptografia')
 
+  def enviar_mensagem(self):
+    mensagem = "Mensagem " + str(self.contador_de_mensagem) + " recebida foi \"" + self.ultima_mensagem_recebida + '\"'
+
+    chave = self.pbkdf2_codigo_2fa_usado_no_acesso
+    self.contador_de_mensagem += 1
+
+    # Encriptografando a mensagem
+    cipher = AES.new(chave, AES.MODE_GCM)
+    header = b'header'
+    cipher.update(header)
+    b_message = mensagem.encode('utf-8')
+    ciphertext, tag = cipher.encrypt_and_digest(b_message)
+
+    json_k = [ 'nonce', 'header', 'ciphertext', 'tag' ]
+    json_v = [ b64encode(x).decode('utf-8') for x in [cipher.nonce, header, ciphertext, tag ]]
+    mensagem_encriptografada = json.dumps(dict(zip(json_k, json_v)))
+
+    # Enviando mensagem pro servidor
+    print('- Servidor -------------------------------------------------')
+    print('\n')
+    print('Mensagem cifrada recebida pelo servidor: ', self.ultima_mensagem_recebida_cifrada)
+    print('\n')
+    print('Mensagem decifrada pelo servidor: ', self.ultima_mensagem_recebida)
+    print('\n')
+    print('Mensagem enviada pelo servidor: ', mensagem)
+    print('\n')
+    print('Mensagem criptografada enviada para o cliente: ', ciphertext)
+    print('\n')
+
+    return mensagem_encriptografada
 

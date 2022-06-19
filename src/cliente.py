@@ -1,5 +1,5 @@
 import json
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from datetime import datetime
 
 from Crypto.Cipher import AES
@@ -41,7 +41,6 @@ class Cliente:
     print('\n')
 
   def login(self):
-    # TODO
     print('--------------- Login ---------------')
     usuario = input('Usuário: ')
     senha = input('Senha: ')
@@ -61,6 +60,8 @@ class Cliente:
     if sucesso_login != False:
       self.codigo_2fa_usado_no_login = sucesso_login
       self.iniciar_comunicacao(usuario_buscado)
+    else:
+      return
 
   def iniciar_comunicacao(self, usuario: User):
     # Criando as chaves, salt e mensagem que serão utilizadas na criptografia
@@ -71,21 +72,23 @@ class Cliente:
 
     # Criando a interface de interação do usuário/cliente com o servidor
     while True:
-      print('------------- Troca de mensagens ------------')
+      print('--------------------- Troca de mensagens --------------------')
       print('          Para sair, digite \'Sair\'')
-      print('---------------------------------------------')
+      print('-------------------------------------------------------------')
       print('\n')
-      message = input('Qual a mensagem a ser enviada? ')
+      print('- Cliente ---------------------------------------------------')
+      print('\n')
+      mensagem = input('Qual a mensagem a ser enviada? ')
 
-      if message.lower() == 'sair':
+      if mensagem.lower() == 'sair':
         break
 
       # Encriptografando a mensagem
       cipher = AES.new(codigo_pbkdf2, AES.MODE_GCM)
       header = b'header'
       cipher.update(header)
-      b_message = message.encode('utf-8')
-      ciphertext, tag = cipher.encrypt_and_digest(b_message)
+      b_mensagem = mensagem.encode('utf-8')
+      ciphertext, tag = cipher.encrypt_and_digest(b_mensagem)
 
       json_k = [ 'nonce', 'header', 'ciphertext', 'tag' ]
       json_v = [ b64encode(x).decode('utf-8') for x in [cipher.nonce, header, ciphertext, tag ]]
@@ -93,10 +96,30 @@ class Cliente:
 
       # Enviando mensagem pro servidor
       print('\n')
-      print('Mensagem criptografada enviada para o servidor: ', mensagem_encriptografada)
+      print('Mensagem criptografada enviada para o servidor: ', ciphertext)
       print('\n')
 
       self.servidor.receber_mensagem(mensagem_encriptografada)
+      
+      # Recebendo resposta do servidor
+      resposta = self.servidor.enviar_mensagem()
 
+      # Descriptografando resposta do servidor
+      try:
+        b64 = json.loads(resposta)
+        json_k = [ 'nonce', 'header', 'ciphertext', 'tag' ]
+        jv = {k:b64decode(b64[k]) for k in json_k}
+
+        cipher = AES.new(self.pbkdf2_codigo_2fa_usado_no_login, AES.MODE_GCM, nonce=jv['nonce'])
+        cipher.update(jv['header'])
+        mensagem_decifrada = cipher.decrypt_and_verify(jv['ciphertext'], jv['tag'])
+        print('- Cliente ---------------------------------------------------')
+        print('\n')
+        print('Mensagem cifrada recebida pelo cliente:', jv['ciphertext'])
+        print('\n')
+        print('A mensagem decifrada pelo cliente é:', mensagem_decifrada.decode("utf-8"))
+        print('\n')
+      except (ValueError, KeyError):
+        print('Ocorreu um erro na descriptografia')
 
     
